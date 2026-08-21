@@ -1,10 +1,11 @@
 module github.com/smlx/ambashador
 
-go 1.22.2
+go 1.27
 
 require (
 	github.com/alecthomas/assert/v2 v2.11.0
 	github.com/alecthomas/kong v1.16.0
+	mvdan.cc/sh/v3 v3.13.1
 )
 
 require (
