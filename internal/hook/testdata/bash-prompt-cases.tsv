@@ -23,6 +23,9 @@ allow	wc -l f
 allow	cut -d ' ' -f 1 f
 allow	nl f
 allow	uniq f
+allow	sort f
+allow	sort -r f
+allow	sort -u f
 
 # Commands that are simply not on the allowlist.
 deny	rm -rf /
@@ -68,11 +71,11 @@ allow	go test ./... | tail -20
 allow	cat f | grep x | head
 allow	ls | sort | uniq -c | sort -rn
 allow	wc -l f | grep x
+allow	sort f | grep x
 deny	ls | awk '{print}'
 deny	ls | xargs rm
 deny	ls | sh
 deny	ls | tee out | rm
-deny	sort f | grep x
 
 # 'tee' is a deliberate file-writing exception, allowed in either position.
 allow	ls | tee out
@@ -82,6 +85,7 @@ allow	tee out
 # rejected with advice rather than a bare fall-through.
 allow	sed --sandbox -n 1p f
 allow	ls | sed --sandbox s/a/b/
+allow	sed --sandbox -n 1p f > out
 explain	sed -i s/a/b/ f
 explain	sed w out f
 explain	sed -n 1p f
@@ -96,18 +100,17 @@ allow	ls 1>&2
 allow	ls 2>&1|grep x
 allow	ls 2>&1 2>&1
 allow	ls 2>&1 3>&2
-deny	ls 2>&1 > out
+allow	ls 2>&1 > out
+allow	ls >&out
+allow	ls &> out
+allow	ls &>> out
 deny	ls 2>&1 &
-deny	ls >&out
-deny	ls &> out
-deny	ls &>> out
 deny	ls | 2>&1
 deny	ls &2>&1& pwd
 deny	ls 12>&1
 deny	ls 2>&11
 
-# Discarding stderr is permitted, but only as a trailing '<digit>>/dev/null'
-# with an exact path, and never as a way to launder a rejected command.
+# File redirection and discarding output are permitted after a command.
 allow	ls 2>/dev/null
 allow	ls 2>/dev/null | grep x
 allow	go build ./... 2>/dev/null && ls
@@ -119,25 +122,49 @@ allow	ls 2>/dev/null 2>/dev/null
 allow	cat f 2>/dev/null | wc -l
 allow	ls 3>/dev/null
 allow	ls | 2>/dev/null
+allow	ls 2>/dev/nullx
+allow	ls 2>/dev/null/../etc/passwd
+allow	ls >/dev/null
+allow	ls &>/dev/null
+allow	ls 2>>/dev/null
+allow	ls 2>/tmp/out
 explain	sed -n 1p f 2>/dev/null
 deny	2>/dev/null ls
-deny	ls 2>/dev/nullx
-deny	ls 2>/dev/null/../etc/passwd
-deny	ls >/dev/null
-deny	ls &>/dev/null
-deny	ls 2>>/dev/null
-deny	ls 2>/tmp/out
 deny	rm -rf / 2>/dev/null
 deny	ls | xargs rm 2>/dev/null
+
+# Shell redirection to a file is allowed; redirection to a command is denied.
+allow	ls > out
+allow	ls >> out
+allow	ls < in
+allow	ls < in > out
+allow	ls 2> out
+allow	ls 2>> out
+allow	ls >| out
+allow	ls <> out
+allow	ls > "out file"
+allow	ls > 'out file'
+allow	echo hello > out
+allow	cat in > out
+allow	sort < in > out
+deny	ls > >(cat)
+deny	ls < <(cat)
+deny	ls > >(rm -rf /)
+deny	ls < <(rm -rf /)
+deny	ls > $(id)
+deny	ls < $(id)
+deny	ls > `id`
+deny	ls < `id`
+deny	ls > $HOME
+deny	ls > $'hello'
+deny	ls > $"hello"
 
 # 'rg' allows searching, but preprocessors ('--pre') are denied.
 deny	rg --pre /bin/sh pattern
 deny	rg --pre=sh pattern
 deny	ls | rg --pre sh
 
-# Redirects, substitution, escapes and backgrounding are always rejected.
-deny	ls > out
-deny	ls < in
+# Substitution, escapes and backgrounding are always rejected.
 deny	echo `id`
 deny	echo $(id)
 deny	echo $HOME
@@ -172,7 +199,9 @@ deny
 # in a command below is an escape for a real newline.
 allow	ls\npwd
 allow	ls 2>/dev/null\npwd
+allow	pwd\nls > out
 deny	ls\nrm -rf /
 deny	ls 2>&1\nrm -rf /
-deny	pwd\nls > out
 deny	pwd\ncat | xargs rm
+deny	pwd\nls > >(cat)
+deny	pwd\nls > $(id)

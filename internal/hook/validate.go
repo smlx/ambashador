@@ -31,6 +31,7 @@ var AllowedCommands = map[string]bool{
 	"pwd":           true,
 	"rg":            true,
 	"sed":           true,
+	"sort":          true,
 	"tail":          true,
 	"tee":           true,
 	"true":          true,
@@ -195,7 +196,11 @@ func isDiscardOnlyStage(redirs []*syntax.Redirect) bool {
 		return false
 	}
 	for _, r := range redirs {
-		if !isAllowedRedirect(r) || r.Op != syntax.RdrOut {
+		if !isAllowedRedirect(r) ||
+			(r.Op != syntax.RdrOut &&
+				r.Op != syntax.AppOut &&
+				r.Op != syntax.RdrAll &&
+				r.Op != syntax.AppAll) {
 			return false
 		}
 	}
@@ -302,26 +307,42 @@ func isAllowedRedirect(r *syntax.Redirect) bool {
 	if r == nil {
 		return true
 	}
-	if r.N == nil {
-		return false
+	if r.N != nil {
+		fdNum := r.N.Value
+		if len(fdNum) != 1 || fdNum[0] < '0' || fdNum[0] > '9' {
+			return false
+		}
 	}
-	fdNum := r.N.Value
-	if len(fdNum) != 1 || fdNum[0] < '0' || fdNum[0] > '9' {
+	target, ok := extractStaticWord(r.Word)
+	if !ok || target == "" {
 		return false
 	}
 	switch r.Op {
-	case syntax.DplOut, syntax.DplIn:
-		target, ok := extractStaticWord(r.Word)
-		if !ok {
+	case syntax.DplOut:
+		if r.N != nil {
+			return len(target) == 1 && target[0] >= '0' && target[0] <= '9'
+		}
+		allDigits := true
+		for i := 0; i < len(target); i++ {
+			if target[i] < '0' || target[i] > '9' {
+				allDigits = false
+				break
+			}
+		}
+		if allDigits && len(target) != 1 {
 			return false
 		}
+		return true
+	case syntax.DplIn:
 		return len(target) == 1 && target[0] >= '0' && target[0] <= '9'
-	case syntax.RdrOut:
-		target, ok := extractStaticWord(r.Word)
-		if !ok {
-			return false
-		}
-		return target == "/dev/null"
+	case syntax.RdrOut,
+		syntax.AppOut,
+		syntax.RdrIn,
+		syntax.RdrInOut,
+		syntax.RdrClob,
+		syntax.RdrAll,
+		syntax.AppAll:
+		return true
 	default:
 		return false
 	}
