@@ -1,0 +1,207 @@
+# Test cases for ambashador, one per line, in the form:
+#
+#	<expectation><TAB><command>
+#
+# where <expectation> is 'allow' (the hook should auto-approve), 'deny' (the
+# hook should fall through to the interactive prompt) or 'explain' (fall through
+# and additionally return a 'context' string advising the model). Blank lines and
+# lines beginning with '#' are ignored. Leading and trailing whitespace in the
+# command is significant and preserved, so cases can cover odd spacing.
+
+# Plain commands on the allowlist.
+allow	ls -la
+allow	pwd
+allow	echo hello
+allow	rg pattern
+allow	rg --pre-glob '*.txt' pattern
+allow	go test ./...
+allow	golangci-lint run
+allow	gofmt -l .
+allow	false
+allow	true
+allow	wc -l f
+allow	cut -d ' ' -f 1 f
+allow	nl f
+allow	uniq f
+allow	sort f
+allow	sort -r f
+allow	sort -u f
+
+# Commands that are simply not on the allowlist.
+deny	rm -rf /
+deny	curl https://example.com
+deny	python script.py
+
+# 'find' is allowed for search, but execution and deletion flags are denied.
+allow	find . -type f -name '*.go'
+allow	find /tmp -maxdepth 1
+deny	find . -exec rm -rf {} +
+deny	find . -exec ls {} \;
+deny	find . -execdir rm -rf {} +
+deny	find . -ok rm {} \;
+deny	find . -okdir rm {} \;
+deny	find . -delete
+
+# 'git' is allowed only for read-only subcommands, named immediately after it.
+allow	git status
+allow	git diff
+allow	git diff --stat HEAD
+allow	git show HEAD
+allow	git status | grep modified
+deny	git
+deny	git push
+deny	git commit -m x
+deny	git reset --hard
+deny	git -c core.pager=sh diff
+deny	git -C /tmp status
+deny	ls | git diff
+
+# Chaining with '&&', '||' and ';'.
+allow	go build ./... && ls
+allow	false || ls
+allow	true && ls | wc -l
+allow	  find . ; pwd 
+deny	ls && rm -rf /
+deny	ls ; curl https://example.com
+
+# Pipelines: the first stage uses the full allowlist, later stages the narrower
+# filter list.
+allow	ls | wc -l
+allow	go test ./... | tail -20
+allow	cat f | grep x | head
+allow	ls | sort | uniq -c | sort -rn
+allow	wc -l f | grep x
+allow	sort f | grep x
+deny	ls | awk '{print}'
+deny	ls | xargs rm
+deny	ls | sh
+deny	ls | tee out | rm
+
+# 'tee' is a deliberate file-writing exception, allowed in either position.
+allow	ls | tee out
+allow	tee out
+
+# 'sed' must be explicitly sandboxed wherever it appears. An un-sandboxed sed is
+# rejected with advice rather than a bare fall-through.
+allow	sed --sandbox -n 1p f
+allow	ls | sed --sandbox s/a/b/
+allow	sed --sandbox -n 1p f > out
+explain	sed -i s/a/b/ f
+explain	sed w out f
+explain	sed -n 1p f
+explain	ls | sed s/a/b/
+
+# File descriptor duplication is permitted, but only in the '<digit>>&<digit>'
+# form and only where it cannot mask a real redirect or a backgrounding '&'.
+allow	ls 2>&1 | grep x
+allow	go build ./... 2>&1 | tail -20
+allow	go test ./... 2>&1
+allow	ls 1>&2
+allow	ls 2>&1|grep x
+allow	ls 2>&1 2>&1
+allow	ls 2>&1 3>&2
+allow	ls 2>&1 > out
+allow	ls >&out
+allow	ls &> out
+allow	ls &>> out
+deny	ls 2>&1 &
+deny	ls | 2>&1
+deny	ls &2>&1& pwd
+deny	ls 12>&1
+deny	ls 2>&11
+
+# File redirection and discarding output are permitted after a command.
+allow	ls 2>/dev/null
+allow	ls 2>/dev/null | grep x
+allow	go build ./... 2>/dev/null && ls
+allow	ls 2>&1 2>/dev/null
+allow	ls 2>/dev/null ; pwd
+allow	ls | grep x 2>/dev/null
+allow	ls 2>/dev/null|grep x
+allow	ls 2>/dev/null 2>/dev/null
+allow	cat f 2>/dev/null | wc -l
+allow	ls 3>/dev/null
+allow	ls | 2>/dev/null
+allow	ls 2>/dev/nullx
+allow	ls 2>/dev/null/../etc/passwd
+allow	ls >/dev/null
+allow	ls &>/dev/null
+allow	ls 2>>/dev/null
+allow	ls 2>/tmp/out
+explain	sed -n 1p f 2>/dev/null
+deny	2>/dev/null ls
+deny	rm -rf / 2>/dev/null
+deny	ls | xargs rm 2>/dev/null
+
+# Shell redirection to a file is allowed; redirection to a command is denied.
+allow	ls > out
+allow	ls >> out
+allow	ls < in
+allow	ls < in > out
+allow	ls 2> out
+allow	ls 2>> out
+allow	ls >| out
+allow	ls <> out
+allow	ls > "out file"
+allow	ls > 'out file'
+allow	echo hello > out
+allow	cat in > out
+allow	sort < in > out
+deny	ls > >(cat)
+deny	ls < <(cat)
+deny	ls > >(rm -rf /)
+deny	ls < <(rm -rf /)
+deny	ls > $(id)
+deny	ls < $(id)
+deny	ls > `id`
+deny	ls < `id`
+deny	ls > $HOME
+deny	ls > $'hello'
+deny	ls > $"hello"
+
+# 'rg' allows searching, but preprocessors ('--pre') are denied.
+deny	rg --pre /bin/sh pattern
+deny	rg --pre=sh pattern
+deny	ls | rg --pre sh
+
+# Substitution, escapes and backgrounding are always rejected.
+deny	echo `id`
+deny	echo $(id)
+deny	echo $HOME
+deny	echo $'hello'
+deny	echo $"hello"
+deny	find . $'-exec' ls {} \;
+deny	find . $'-ex\x65c' ls {} \;
+deny	find . $'-delete'
+deny	ls &
+deny	ls |& cat
+deny	ls \; rm -rf /
+deny	echo "hello\\world"
+deny	echo "hello\$world"
+deny	echo "hello\`id\`"
+
+# Compound commands, subshells and control structures are rejected.
+deny	(ls)
+deny	(pwd)
+deny	{ ls; }
+deny	{ pwd; }
+deny	(( 1 + 1 ))
+deny	[[ 1 == 1 ]]
+deny	while true; do ls; done
+deny	for f in *; do ls; done
+deny	if true; then ls; fi
+
+# Empty and whitespace-only commands are never auto-approved.
+deny	
+deny	   
+
+# Newlines separate commands, so each line must be validated on its own. '\n'
+# in a command below is an escape for a real newline.
+allow	ls\npwd
+allow	ls 2>/dev/null\npwd
+allow	pwd\nls > out
+deny	ls\nrm -rf /
+deny	ls 2>&1\nrm -rf /
+deny	pwd\ncat | xargs rm
+deny	pwd\nls > >(cat)
+deny	pwd\nls > $(id)

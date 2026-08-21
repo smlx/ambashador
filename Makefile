@@ -22,7 +22,7 @@ lint:
 
 .PHONY: fuzz
 fuzz: mod-tidy generate
-	go test -fuzz='^Fuzz' -fuzztime=10s -v ./internal/server
+	go test -fuzz='^Fuzz' -fuzztime=10s -v ./internal/hook
 
 .PHONY: cover
 cover: mod-tidy generate

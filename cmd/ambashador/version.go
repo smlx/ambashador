@@ -1,10 +1,11 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"runtime"
+
+	"github.com/alecthomas/kong"
 )
 
 // These variables are set by GoReleaser during the build.
@@ -15,12 +16,12 @@ var (
 	version     string
 )
 
-// VersionCmd represents the `version` command.
-type VersionCmd struct{}
+// VersionFlag is a boolean flag that prints version information and exits.
+type VersionFlag bool
 
-// Run the Version command.
-func (*VersionCmd) Run(ctx context.Context) error {
-	v, err := json.Marshal(
+// AfterApply prints version info and terminates when --version is supplied.
+func (v VersionFlag) AfterApply(app *kong.Kong) error {
+	out, err := json.Marshal(
 		struct {
 			ProjectName string
 			Version     string
@@ -37,6 +38,7 @@ func (*VersionCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Println(string(v))
-	return err
+	fmt.Println(string(out))
+	app.Exit(0)
+	return nil
 }
