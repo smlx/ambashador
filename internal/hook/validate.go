@@ -1,6 +1,7 @@
 package hook
 
 import (
+	"slices"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -11,50 +12,54 @@ const SedSandboxAdvice = "Use 'sed --sandbox ...' to avoid a " +
 	"permission prompt."
 
 // AllowedCommands are commands permitted at the beginning of a pipeline.
-var AllowedCommands = map[string]struct{}{
-	"cat":           {},
-	"cd":            {},
-	"echo":          {},
-	"false":         {},
-	"find":          {},
-	"git":           {},
-	"go":            {},
-	"gofmt":         {},
-	"golangci-lint": {},
-	"govulncheck":   {},
-	"grep":          {},
-	"head":          {},
-	"ls":            {},
-	"pwd":           {},
-	"rg":            {},
-	"sed":           {},
-	"tail":          {},
-	"tee":           {},
-	"true":          {},
+var AllowedCommands = map[string]bool{
+	"cat":           true,
+	"cd":            true,
+	"cut":           true,
+	"echo":          true,
+	"false":         true,
+	"find":          true,
+	"git":           true,
+	"go":            true,
+	"gofmt":         true,
+	"golangci-lint": true,
+	"govulncheck":   true,
+	"grep":          true,
+	"head":          true,
+	"ls":            true,
+	"nl":            true,
+	"pwd":           true,
+	"rg":            true,
+	"sed":           true,
+	"tail":          true,
+	"tee":           true,
+	"true":          true,
+	"uniq":          true,
+	"wc":            true,
 }
 
 // AllowedGitSubcommands are read-only git subcommands.
-var AllowedGitSubcommands = map[string]struct{}{
-	"diff":   {},
-	"show":   {},
-	"status": {},
-	"log":    {},
+var AllowedGitSubcommands = map[string]bool{
+	"diff":   true,
+	"show":   true,
+	"status": true,
+	"log":    true,
 }
 
 // AllowedFilters are commands permitted as later stages in a pipeline.
-var AllowedFilters = map[string]struct{}{
-	"cat":  {},
-	"cut":  {},
-	"grep": {},
-	"head": {},
-	"nl":   {},
-	"rg":   {},
-	"sed":  {},
-	"sort": {},
-	"tail": {},
-	"tee":  {},
-	"uniq": {},
-	"wc":   {},
+var AllowedFilters = map[string]bool{
+	"cat":  true,
+	"cut":  true,
+	"grep": true,
+	"head": true,
+	"nl":   true,
+	"rg":   true,
+	"sed":  true,
+	"sort": true,
+	"tail": true,
+	"tee":  true,
+	"uniq": true,
+	"wc":   true,
 }
 
 // Validate inspects a shell command and determines whether it can be approved.
@@ -128,16 +133,12 @@ func checkBinaryCmd(b *syntax.BinaryCmd) Decision {
 }
 
 func flattenPipeline(b *syntax.BinaryCmd) ([]*syntax.Stmt, bool) {
-	var stages []*syntax.Stmt
-	if !collectPipeStages(b, &stages) {
-		return nil, false
-	}
-	return stages, true
+	return collectPipeStages(b, nil)
 }
 
-func collectPipeStages(b *syntax.BinaryCmd, stages *[]*syntax.Stmt) bool {
+func collectPipeStages(b *syntax.BinaryCmd, stages []*syntax.Stmt) ([]*syntax.Stmt, bool) {
 	if b.Op != syntax.Pipe {
-		return false
+		return nil, false
 	}
 	if leftBin, ok := b.X.Cmd.(*syntax.BinaryCmd); ok &&
 		leftBin.Op == syntax.Pipe &&
@@ -145,14 +146,16 @@ func collectPipeStages(b *syntax.BinaryCmd, stages *[]*syntax.Stmt) bool {
 		!b.X.Background &&
 		!b.X.Coprocess &&
 		!b.X.Negated {
-		if !collectPipeStages(leftBin, stages) {
-			return false
+		var ok bool
+		stages, ok = collectPipeStages(leftBin, stages)
+		if !ok {
+			return nil, false
 		}
 	} else {
-		*stages = append(*stages, b.X)
+		stages = append(stages, b.X)
 	}
-	*stages = append(*stages, b.Y)
-	return true
+	stages = append(stages, b.Y)
+	return stages, true
 }
 
 func checkPipeline(stages []*syntax.Stmt) Decision {
@@ -196,7 +199,7 @@ func isDiscardOnlyStage(redirs []*syntax.Redirect) bool {
 		return false
 	}
 	for _, r := range redirs {
-		if r.Op != syntax.RdrOut {
+		if !isAllowedRedirect(r) || r.Op != syntax.RdrOut {
 			return false
 		}
 	}
@@ -212,7 +215,50 @@ func checkRedirectsAfterCmd(redirs []*syntax.Redirect, cmd syntax.Command) bool 
 	return true
 }
 
-func checkCall(call *syntax.CallExpr, allowlist map[string]struct{}) Decision {
+// CommandValidator inspects arguments for a specific command and returns a Decision.
+type CommandValidator func(args []string) Decision
+
+var commandValidators = map[string]CommandValidator{
+	"find": validateFind,
+	"git":  validateGit,
+	"sed":  validateSed,
+}
+
+var disallowedFindFlags = map[string]bool{
+	"-exec":    true,
+	"-execdir": true,
+	"-ok":      true,
+	"-okdir":   true,
+	"-delete":  true,
+}
+
+func validateFind(words []string) Decision {
+	for _, word := range words[1:] {
+		if disallowedFindFlags[word] {
+			return Prompt("")
+		}
+	}
+	return Allow()
+}
+
+func validateSed(words []string) Decision {
+	if !slices.Contains(words, "--sandbox") {
+		return Prompt(SedSandboxAdvice)
+	}
+	return Allow()
+}
+
+func validateGit(words []string) Decision {
+	if len(words) < 2 {
+		return Prompt("")
+	}
+	if !AllowedGitSubcommands[words[1]] {
+		return Prompt("")
+	}
+	return Allow()
+}
+
+func checkCall(call *syntax.CallExpr, allowlist map[string]bool) Decision {
 	if len(call.Assigns) > 0 {
 		return Prompt("")
 	}
@@ -228,19 +274,11 @@ func checkCall(call *syntax.CallExpr, allowlist map[string]struct{}) Decision {
 		return Prompt("")
 	}
 	cmdName := words[0]
-	if _, ok := allowlist[cmdName]; !ok {
+	if !allowlist[cmdName] {
 		return Prompt("")
 	}
-	if cmdName == "sed" && !hasWord(words, "--sandbox") {
-		return Prompt(SedSandboxAdvice)
-	}
-	if cmdName == "git" {
-		if len(words) < 2 {
-			return Prompt("")
-		}
-		if _, ok := AllowedGitSubcommands[words[1]]; !ok {
-			return Prompt("")
-		}
+	if validator, ok := commandValidators[cmdName]; ok {
+		return validator(words)
 	}
 	return Allow()
 }
@@ -301,6 +339,9 @@ func extractStaticWord(w *syntax.Word) (string, bool) {
 			for _, dp := range p.Parts {
 				switch d := dp.(type) {
 				case *syntax.Lit:
+					if strings.Contains(d.Value, `\`) {
+						return "", false
+					}
 					b.WriteString(d.Value)
 				default:
 					return "", false
@@ -311,13 +352,4 @@ func extractStaticWord(w *syntax.Word) (string, bool) {
 		}
 	}
 	return b.String(), true
-}
-
-func hasWord(words []string, target string) bool {
-	for _, w := range words {
-		if w == target {
-			return true
-		}
-	}
-	return false
 }

@@ -1,4 +1,4 @@
-# Test cases for bash-prompt.rb, one per line, in the form:
+# Test cases for ambashador, one per line, in the form:
 #
 #	<expectation><TAB><command>
 #
@@ -17,12 +17,25 @@ allow	golangci-lint run
 allow	gofmt -l .
 allow	false
 allow	true
+allow	wc -l f
+allow	cut -d ' ' -f 1 f
+allow	nl f
+allow	uniq f
 
 # Commands that are simply not on the allowlist.
 deny	rm -rf /
-deny	wc -l f
 deny	curl https://example.com
 deny	python script.py
+
+# 'find' is allowed for search, but execution and deletion flags are denied.
+allow	find . -type f -name '*.go'
+allow	find /tmp -maxdepth 1
+deny	find . -exec rm -rf {} +
+deny	find . -exec ls {} \;
+deny	find . -execdir rm -rf {} +
+deny	find . -ok rm {} \;
+deny	find . -okdir rm {} \;
+deny	find . -delete
 
 # 'git' is allowed only for read-only subcommands, named immediately after it.
 allow	git status
@@ -52,11 +65,12 @@ allow	ls | wc -l
 allow	go test ./... | tail -20
 allow	cat f | grep x | head
 allow	ls | sort | uniq -c | sort -rn
+allow	wc -l f | grep x
 deny	ls | awk '{print}'
 deny	ls | xargs rm
 deny	ls | sh
 deny	ls | tee out | rm
-deny	wc -l f | grep x
+deny	sort f | grep x
 
 # 'tee' is a deliberate file-writing exception, allowed in either position.
 allow	ls | tee out
@@ -123,6 +137,9 @@ deny	echo $HOME
 deny	ls &
 deny	ls |& cat
 deny	ls \; rm -rf /
+deny	echo "hello\\world"
+deny	echo "hello\$world"
+deny	echo "hello\`id\`"
 
 # Empty and whitespace-only commands are never auto-approved.
 deny	

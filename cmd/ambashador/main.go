@@ -2,11 +2,7 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/alecthomas/kong"
 	"github.com/smlx/ambashador/internal/hook"
@@ -19,7 +15,7 @@ type CLI struct {
 }
 
 // Run executes the default validation logic.
-func (c *CLI) Run(ctx context.Context) error {
+func (c *CLI) Run() error {
 	dec := hook.Validate(c.Command)
 	b, err := dec.JSON()
 	if err != nil {
@@ -31,14 +27,10 @@ func (c *CLI) Run(ctx context.Context) error {
 }
 
 func main() {
-	ctx, stop := signal.NotifyContext(
-		context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	// parse CLI config
 	cli := CLI{}
 	kctx := kong.Parse(&cli,
 		kong.UsageOnError(),
-		kong.BindFor(ctx),
 	)
 	// execute CLI
 	kctx.FatalIfErrorf(kctx.Run())
