@@ -1,9 +1,8 @@
 version: 2
 builds:
-- &buildDefinition
-  id: go-cli-github
-  binary: go-cli-github
-  main: ./cmd/go-cli-github
+- id: ambashador
+  binary: ambashador
+  main: ./cmd/ambashador
   ldflags:
   - >
     -s -w
@@ -19,10 +18,6 @@ builds:
   goarch:
   - amd64
   - arm64
-- <<: *buildDefinition
-  id: another-binary
-  binary: another-binary
-  main: ./cmd/another-binary
 
 checksum:
   name_template: checksums.txt
@@ -32,25 +27,3 @@ sboms:
 
 changelog:
   use: github-native
-
-dockers_v2:
-- id: go-cli-github
-  ids:
-  - go-cli-github
-  images:
-  - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}/go-cli-github"
-  tags:
-  - "v{{ .Version }}"
-  - latest
-  build_args:
-    BINARY: go-cli-github
-- id: another-binary
-  ids:
-  - another-binary
-  images:
-  - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}/another-binary"
-  tags:
-  - "v{{ .Version }}"
-  - latest
-  build_args:
-    BINARY: another-binary
