@@ -12,6 +12,8 @@
 allow	ls -la
 allow	pwd
 allow	echo hello
+allow	rg pattern
+allow	rg --pre-glob '*.txt' pattern
 allow	go test ./...
 allow	golangci-lint run
 allow	gofmt -l .
@@ -128,18 +130,39 @@ deny	ls 2>/tmp/out
 deny	rm -rf / 2>/dev/null
 deny	ls | xargs rm 2>/dev/null
 
+# 'rg' allows searching, but preprocessors ('--pre') are denied.
+deny	rg --pre /bin/sh pattern
+deny	rg --pre=sh pattern
+deny	ls | rg --pre sh
+
 # Redirects, substitution, escapes and backgrounding are always rejected.
 deny	ls > out
 deny	ls < in
 deny	echo `id`
 deny	echo $(id)
 deny	echo $HOME
+deny	echo $'hello'
+deny	echo $"hello"
+deny	find . $'-exec' ls {} \;
+deny	find . $'-ex\x65c' ls {} \;
+deny	find . $'-delete'
 deny	ls &
 deny	ls |& cat
 deny	ls \; rm -rf /
 deny	echo "hello\\world"
 deny	echo "hello\$world"
 deny	echo "hello\`id\`"
+
+# Compound commands, subshells and control structures are rejected.
+deny	(ls)
+deny	(pwd)
+deny	{ ls; }
+deny	{ pwd; }
+deny	(( 1 + 1 ))
+deny	[[ 1 == 1 ]]
+deny	while true; do ls; done
+deny	for f in *; do ls; done
+deny	if true; then ls; fi
 
 # Empty and whitespace-only commands are never auto-approved.
 deny	

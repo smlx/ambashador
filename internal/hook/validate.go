@@ -85,21 +85,23 @@ func Validate(cmd string) Decision {
 }
 
 func checkStmt(stmt *syntax.Stmt) Decision {
-	if stmt == nil || stmt.Background || stmt.Coprocess || stmt.Negated {
+	if !isStmtValid(stmt) || stmt.Cmd == nil {
 		return Prompt("")
-	}
-	if !checkRedirects(stmt.Redirs) {
-		return Prompt("")
-	}
-	if stmt.Cmd == nil {
-		return Prompt("")
-	}
-	if call, ok := stmt.Cmd.(*syntax.CallExpr); ok {
-		if !checkRedirectsAfterCmd(stmt.Redirs, call) {
-			return Prompt("")
-		}
 	}
 	return checkCommand(stmt.Cmd)
+}
+
+func isStmtValid(stmt *syntax.Stmt) bool {
+	if stmt == nil || stmt.Background || stmt.Coprocess || stmt.Negated {
+		return false
+	}
+	if !checkRedirects(stmt.Redirs) {
+		return false
+	}
+	if call, ok := stmt.Cmd.(*syntax.CallExpr); ok {
+		return checkRedirectsAfterCmd(stmt.Redirs, call)
+	}
+	return true
 }
 
 func checkCommand(cmd syntax.Command) Decision {
@@ -163,10 +165,7 @@ func checkPipeline(stages []*syntax.Stmt) Decision {
 		return Allow()
 	}
 	for i, stage := range stages {
-		if stage.Background || stage.Coprocess || stage.Negated {
-			return Prompt("")
-		}
-		if !checkRedirects(stage.Redirs) {
+		if !isStmtValid(stage) {
 			return Prompt("")
 		}
 		if stage.Cmd == nil {
@@ -177,9 +176,6 @@ func checkPipeline(stages []*syntax.Stmt) Decision {
 		}
 		call, ok := stage.Cmd.(*syntax.CallExpr)
 		if !ok {
-			return Prompt("")
-		}
-		if !checkRedirectsAfterCmd(stage.Redirs, call) {
 			return Prompt("")
 		}
 		allowlist := AllowedFilters
@@ -221,6 +217,7 @@ type CommandValidator func(args []string) Decision
 var commandValidators = map[string]CommandValidator{
 	"find": validateFind,
 	"git":  validateGit,
+	"rg":   validateRg,
 	"sed":  validateSed,
 }
 
@@ -235,6 +232,15 @@ var disallowedFindFlags = map[string]bool{
 func validateFind(words []string) Decision {
 	for _, word := range words[1:] {
 		if disallowedFindFlags[word] {
+			return Prompt("")
+		}
+	}
+	return Allow()
+}
+
+func validateRg(words []string) Decision {
+	for _, word := range words[1:] {
+		if word == "--pre" || strings.HasPrefix(word, "--pre=") {
 			return Prompt("")
 		}
 	}
@@ -334,8 +340,14 @@ func extractStaticWord(w *syntax.Word) (string, bool) {
 			}
 			b.WriteString(p.Value)
 		case *syntax.SglQuoted:
+			if p.Dollar {
+				return "", false
+			}
 			b.WriteString(p.Value)
 		case *syntax.DblQuoted:
+			if p.Dollar {
+				return "", false
+			}
 			for _, dp := range p.Parts {
 				switch d := dp.(type) {
 				case *syntax.Lit:
