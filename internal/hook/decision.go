@@ -6,16 +6,23 @@ import (
 	"fmt"
 )
 
+const decisionAllow = "allow"
+
 // Decision represents the outcome of inspecting a command.
 type Decision struct {
 	Decision string `json:"decision,omitzero"`
 	Context  string `json:"context,omitzero"`
 }
 
+// IsAllowed returns true if the decision permits command execution.
+func (d Decision) IsAllowed() bool {
+	return d.Decision == decisionAllow
+}
+
 // Allow returns an affirmative approval decision.
 func Allow() Decision {
 	return Decision{
-		Decision: "allow",
+		Decision: decisionAllow,
 	}
 }
 
