@@ -176,9 +176,14 @@ deny	find . $'-delete'
 deny	ls &
 deny	ls |& cat
 deny	ls \; rm -rf /
-deny	echo "hello\\world"
-deny	echo "hello\$world"
-deny	echo "hello\`id\`"
+# Escapes in double quotes are unescaped safely; unescaped substitutions are rejected.
+allow	echo "hello\\world"
+allow	echo "hello\$world"
+allow	echo "hello\`id\`"
+allow	grep -rn "func (\n" /example/dir/*
+deny	echo "hello$world"
+deny	echo "hello$(id)"
+deny	echo "hello`id`"
 
 # Compound commands, subshells and control structures are rejected.
 deny	(ls)
