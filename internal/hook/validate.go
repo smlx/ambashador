@@ -322,12 +322,37 @@ func isAllowedRedirect(r *syntax.Redirect) bool {
 	}
 }
 
-// extractLit validates that a literal string contains no escape characters.
+// extractLit validates that an unquoted literal string contains no escape characters.
 func extractLit(v string) (string, bool) {
 	if strings.Contains(v, `\`) {
 		return "", false
 	}
 	return v, true
+}
+
+// unescapeDblQuotedLit unescapes literal content inside double quotes according
+// to Bash rules: backslash only escapes $, `, ", \, and newline. For other
+// characters, the backslash is preserved literally.
+func unescapeDblQuotedLit(v string) string {
+	var b strings.Builder
+	for i := 0; i < len(v); i++ {
+		if v[i] == '\\' && i+1 < len(v) {
+			next := v[i+1]
+			switch next {
+			case '$', '`', '"', '\\':
+				b.WriteByte(next)
+				i++
+			case '\n':
+				// \<newline> is line continuation; omit both.
+				i++
+			default:
+				b.WriteByte('\\')
+			}
+			continue
+		}
+		b.WriteByte(v[i])
+	}
+	return b.String()
 }
 
 // extractStaticWord extracts literal text from a word node, rejecting
@@ -357,11 +382,7 @@ func extractStaticWord(w *syntax.Word) (string, bool) {
 			for _, dp := range p.Parts {
 				switch d := dp.(type) {
 				case *syntax.Lit:
-					lit, ok := extractLit(d.Value)
-					if !ok {
-						return "", false
-					}
-					b.WriteString(lit)
+					b.WriteString(unescapeDblQuotedLit(d.Value))
 				default:
 					return "", false
 				}
