@@ -37,6 +37,7 @@ var allowedCommands = map[string]bool{
 	"cat":           true,
 	"cd":            true,
 	"cut":           true,
+	"diff":          true,
 	"echo":          true,
 	"false":         true,
 	"find":          true,
@@ -47,6 +48,7 @@ var allowedCommands = map[string]bool{
 	"govulncheck":   true,
 	"grep":          true,
 	"head":          true,
+	"jq":            true,
 	"ls":            true,
 	"nl":            true,
 	"pwd":           true,
@@ -60,9 +62,15 @@ var allowedCommands = map[string]bool{
 	"wc":            true,
 }
 
+// disallowedGitGrepFlags identifies git grep arguments capable of arbitrary command execution.
+var disallowedGitGrepFlags = map[string]bool{
+	"--textconv": true,
+}
+
 // allowedGitSubcommands defines read-only git subcommands permitted for auto-approval.
 var allowedGitSubcommands = map[string]bool{
 	"diff":   true,
+	"grep":   true,
 	"show":   true,
 	"status": true,
 	"log":    true,
@@ -72,8 +80,10 @@ var allowedGitSubcommands = map[string]bool{
 var allowedFilters = map[string]bool{
 	"cat":  true,
 	"cut":  true,
+	"diff": true,
 	"grep": true,
 	"head": true,
+	"jq":   true,
 	"nl":   true,
 	"rg":   true,
 	"sed":  true,
@@ -454,8 +464,26 @@ func validateGit(words []string) Decision {
 	if len(words) < 2 {
 		return Prompt("")
 	}
-	if !allowedGitSubcommands[words[1]] {
+	subcmd := words[1]
+	if !allowedGitSubcommands[subcmd] {
 		return Prompt("")
+	}
+	if subcmd == "grep" {
+		return validateGitGrep(words[2:])
+	}
+	return Allow()
+}
+
+// validateGitGrep verifies git grep invocations do not launch pagers or external converters.
+func validateGitGrep(words []string) Decision {
+	for _, word := range words {
+		if disallowedGitGrepFlags[word] ||
+			word == "-O" ||
+			word == "--open-files-in-pager" ||
+			strings.HasPrefix(word, "-O") ||
+			strings.HasPrefix(word, "--open-files-in-pager=") {
+			return Prompt("")
+		}
 	}
 	return Allow()
 }

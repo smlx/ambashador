@@ -21,6 +21,10 @@ allow	false
 allow	true
 allow	wc -l f
 allow	cut -d ' ' -f 1 f
+allow	diff file1 file2
+allow	diff -u file1 file2
+allow	jq . file.json
+allow	jq -r '.foo' file.json
 allow	nl f
 allow	uniq f
 allow	sort f
@@ -48,12 +52,19 @@ allow	git diff
 allow	git diff --stat HEAD
 allow	git show HEAD
 allow	git status | grep modified
+allow	git grep pattern
+allow	git grep -n --cached pattern
 deny	git
 deny	git push
 deny	git commit -m x
 deny	git reset --hard
 deny	git -c core.pager=sh diff
 deny	git -C /tmp status
+deny	git grep --textconv pattern
+deny	git grep --open-files-in-pager pattern
+deny	git grep --open-files-in-pager=less pattern
+deny	git grep -O pattern
+deny	git grep -Oless pattern
 deny	ls | git diff
 
 # Chaining with '&&', '||' and ';'.
@@ -72,6 +83,8 @@ allow	cat f | grep x | head
 allow	ls | sort | uniq -c | sort -rn
 allow	wc -l f | grep x
 allow	sort f | grep x
+allow	cat file.json | jq .
+allow	cat f | diff -u - f2
 deny	ls | awk '{print}'
 deny	ls | xargs rm
 deny	ls | sh
