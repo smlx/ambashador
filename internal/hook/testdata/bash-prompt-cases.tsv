@@ -52,6 +52,8 @@ allow	git diff
 allow	git diff --stat HEAD
 allow	git show HEAD
 allow	git status | grep modified
+allow	git log
+allow	git log -n 5 --oneline
 allow	git grep pattern
 allow	git grep -n --cached pattern
 deny	git
@@ -65,6 +67,8 @@ deny	git grep --open-files-in-pager pattern
 deny	git grep --open-files-in-pager=less pattern
 deny	git grep -O pattern
 deny	git grep -Oless pattern
+deny	git log --ext-diff
+deny	git log --textconv
 deny	ls | git diff
 
 # Chaining with '&&', '||' and ';'.
