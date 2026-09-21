@@ -98,6 +98,51 @@ allow	tee out
 # rejected with advice rather than a bare fall-through.
 allow	sed --sandbox -n 1p f
 allow	ls | sed --sandbox s/a/b/
+
+# 'man' allows safe reading of manual pages, but arbitrary pagers/browsers/local files are denied.
+allow	man ls
+allow	man 1 ls
+allow	man 3 printf
+allow	man -a ls
+allow	man -k printf
+allow	man -f printf
+allow	man -w ls
+allow	man --regex '.*'
+deny	man
+deny	man -P /bin/sh ls
+deny	man --pager=sh ls
+deny	man -H /bin/sh ls
+deny	man -l ./page.1
+deny	man ./page.1
+deny	man /etc/passwd
+deny	man -C /tmp/man.conf ls
+
+# 'nm' allows inspecting symbol tables, but external plugins or response files are denied.
+allow	nm main.o
+allow	nm -a main.o
+allow	nm -D -g main.o
+allow	nm -C --demangle=rust main.o
+allow	nm --format=bsd main.o
+allow	nm -f posix main.o
+allow	nm -t x main.o
+deny	nm --plugin /tmp/lib.so main.o
+deny	nm --plugin=lib.so main.o
+deny	nm @options.txt
+deny	nm -f unknown main.o
+
+# 'objdump' allows disassembling and header dumping, but external commands/plugins/response files are denied.
+allow	objdump -d main.o
+allow	objdump -d -M intel main.o
+allow	objdump -x -s main.o
+allow	objdump -j .text -d main.o
+allow	objdump --section=.text -d main.o
+allow	objdump --disassemble=main main.o
+allow	objdump -S -C main.o
+allow	objdump --demangle=rust main.o
+deny	objdump @options.txt
+deny	objdump --dwarf=follow-links main.o
+deny	objdump -WK main.o
+deny	objdump --demangle=unknown main.o
 allow	sed --sandbox -n 1p f > out
 explain	sed -i s/a/b/ f
 explain	sed w out f

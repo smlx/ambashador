@@ -16,10 +16,13 @@ type CommandValidator func(args []string) Decision
 // commandValidators registers specialized validation handlers for commands
 // requiring deeper argument inspection.
 var commandValidators = map[string]CommandValidator{
-	"find": validateFind,
-	"git":  validateGit,
-	"rg":   validateRg,
-	"sed":  validateSed,
+	"find":    validateFind,
+	"git":     validateGit,
+	"man":     validateMan,
+	"nm":      validateNm,
+	"objdump": validateObjdump,
+	"rg":      validateRg,
+	"sed":     validateSed,
 }
 
 // disallowedFindFlags identifies find arguments capable of file modification or
@@ -50,7 +53,10 @@ var allowedCommands = map[string]bool{
 	"head":          true,
 	"jq":            true,
 	"ls":            true,
+	"man":           true,
 	"nl":            true,
+	"nm":            true,
+	"objdump":       true,
 	"pwd":           true,
 	"rg":            true,
 	"sed":           true,
@@ -65,6 +71,162 @@ var allowedCommands = map[string]bool{
 // disallowedGitGrepFlags identifies git grep arguments capable of arbitrary command execution.
 var disallowedGitGrepFlags = map[string]bool{
 	"--textconv": true,
+}
+
+// allowedManFlags defines safe flags permitted for man invocations.
+var allowedManFlags = map[string]bool{
+	"-a":                 true,
+	"--all":              true,
+	"-d":                 true,
+	"--debug":            true,
+	"-D":                 true,
+	"--default":          true,
+	"-f":                 true,
+	"--whatis":           true,
+	"-k":                 true,
+	"--apropos":          true,
+	"-K":                 true,
+	"--global-apropos":   true,
+	"-w":                 true,
+	"--where":            true,
+	"--path":             true,
+	"--location":         true,
+	"-W":                 true,
+	"--where-cat":        true,
+	"--location-cat":     true,
+	"-i":                 true,
+	"--ignore-case":      true,
+	"-I":                 true,
+	"--match-case":       true,
+	"-u":                 true,
+	"--update":           true,
+	"--regex":            true,
+	"--wildcard":         true,
+	"--names-only":       true,
+	"--no-subpages":      true,
+	"--no-hyphenation":   true,
+	"--nh":               true,
+	"--no-justification": true,
+	"--nj":               true,
+	"-7":                 true,
+	"--ascii":            true,
+	"-?":                 true,
+	"--help":             true,
+	"--usage":            true,
+	"-V":                 true,
+	"--version":          true,
+}
+
+// allowedNmFlags defines safe flags permitted for nm invocations.
+var allowedNmFlags = map[string]bool{
+	"-a":                        true,
+	"--debug-syms":              true,
+	"-A":                        true,
+	"--print-file-name":         true,
+	"-B":                        true,
+	"-C":                        true,
+	"--demangle":                true,
+	"--no-demangle":             true,
+	"--recurse-limit":           true,
+	"--no-recurse-limit":        true,
+	"-D":                        true,
+	"--dynamic":                 true,
+	"-g":                        true,
+	"--extern-only":             true,
+	"-j":                        true,
+	"--just-symbols":            true,
+	"-l":                        true,
+	"--line-numbers":            true,
+	"-n":                        true,
+	"--numeric-sort":            true,
+	"-o":                        true,
+	"-p":                        true,
+	"--no-sort":                 true,
+	"-P":                        true,
+	"--portability":             true,
+	"-r":                        true,
+	"--reverse-sort":            true,
+	"-S":                        true,
+	"--print-size":              true,
+	"-s":                        true,
+	"--print-armap":             true,
+	"--quiet":                   true,
+	"--size-sort":               true,
+	"--special-syms":            true,
+	"--synthetic":               true,
+	"-u":                        true,
+	"--undefined-only":          true,
+	"-U":                        true,
+	"--defined-only":            true,
+	"-W":                        true,
+	"--no-weak":                 true,
+	"--without-symbol-versions": true,
+	"-h":                        true,
+	"--help":                    true,
+	"-V":                        true,
+	"--version":                 true,
+}
+
+// allowedObjdumpFlags defines safe flags permitted for objdump invocations.
+var allowedObjdumpFlags = map[string]bool{
+	"-a":                   true,
+	"--archive-headers":    true,
+	"-f":                   true,
+	"--file-headers":       true,
+	"-p":                   true,
+	"--private-headers":    true,
+	"-h":                   true,
+	"--section-headers":    true,
+	"--headers":            true,
+	"-x":                   true,
+	"--all-headers":        true,
+	"-d":                   true,
+	"--disassemble":        true,
+	"-D":                   true,
+	"--disassemble-all":    true,
+	"-S":                   true,
+	"--source":             true,
+	"-s":                   true,
+	"--full-contents":      true,
+	"-g":                   true,
+	"--debugging":          true,
+	"-e":                   true,
+	"--debugging-tags":     true,
+	"-G":                   true,
+	"--stabs":              true,
+	"-t":                   true,
+	"--syms":               true,
+	"-T":                   true,
+	"--dynamic-syms":       true,
+	"-r":                   true,
+	"--reloc":              true,
+	"-R":                   true,
+	"--dynamic-reloc":      true,
+	"-v":                   true,
+	"--version":            true,
+	"-i":                   true,
+	"--info":               true,
+	"-H":                   true,
+	"--help":               true,
+	"-l":                   true,
+	"--line-numbers":       true,
+	"-F":                   true,
+	"--file-offsets":       true,
+	"-C":                   true,
+	"--demangle":           true,
+	"--recurse-limit":      true,
+	"--no-recurse-limit":   true,
+	"-w":                   true,
+	"--wide":               true,
+	"-z":                   true,
+	"--disassemble-zeroes": true,
+	"--no-addresses":       true,
+	"--prefix-addresses":   true,
+	"--show-raw-insn":      true,
+	"--no-show-raw-insn":   true,
+	"--show-all-symbols":   true,
+	"--special-syms":       true,
+	"--inlines":            true,
 }
 
 // allowedGitSubcommands defines read-only git subcommands permitted for auto-approval.
@@ -482,6 +644,168 @@ func validateGitGrep(words []string) Decision {
 			word == "--open-files-in-pager" ||
 			strings.HasPrefix(word, "-O") ||
 			strings.HasPrefix(word, "--open-files-in-pager=") {
+			return Prompt("")
+		}
+	}
+	return Allow()
+}
+
+// isSectionArg verifies if an argument matches a standard man section.
+func isSectionArg(arg string) bool {
+	if len(arg) == 0 || len(arg) > 3 {
+		return false
+	}
+	first := arg[0]
+	if first < '1' || first > '9' {
+		return false
+	}
+	for i := 1; i < len(arg); i++ {
+		ch := arg[i]
+		if (ch < 'a' || ch > 'z') && (ch < 'A' || ch > 'Z') {
+			return false
+		}
+	}
+	return true
+}
+
+// validateMan verifies man arguments against an allowlist of flags, sections,
+// and safe page names.
+func validateMan(words []string) Decision {
+	if len(words) < 2 {
+		return Prompt("")
+	}
+	hasTarget := false
+	for _, word := range words[1:] {
+		if strings.HasPrefix(word, "-") {
+			if !allowedManFlags[word] {
+				return Prompt("")
+			}
+			continue
+		}
+		if isSectionArg(word) {
+			continue
+		}
+		// Positional argument: ensure it does not start with special control characters
+		// or contain file path separators that could reference local files.
+		if strings.Contains(word, "/") || strings.Contains(word, `\`) {
+			return Prompt("")
+		}
+		hasTarget = true
+	}
+	if !hasTarget {
+		return Prompt("")
+	}
+	return Allow()
+}
+
+// validateNm verifies nm arguments against an allowlist of inspection flags.
+func validateNm(words []string) Decision {
+	for i := 1; i < len(words); i++ {
+		word := words[i]
+		if strings.HasPrefix(word, "@") {
+			return Prompt("")
+		}
+		if !strings.HasPrefix(word, "-") {
+			continue
+		}
+		if allowedNmFlags[word] {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(word, "--format="):
+			val := strings.TrimPrefix(word, "--format=")
+			switch val {
+			case "bsd", "sysv", "posix", "just-symbols":
+			default:
+				return Prompt("")
+			}
+		case word == "-f":
+			if i+1 >= len(words) {
+				return Prompt("")
+			}
+			i++
+			switch words[i] {
+			case "bsd", "sysv", "posix", "just-symbols":
+			default:
+				return Prompt("")
+			}
+		case strings.HasPrefix(word, "--radix="):
+			val := strings.TrimPrefix(word, "--radix=")
+			switch val {
+			case "d", "o", "x":
+			default:
+				return Prompt("")
+			}
+		case word == "-t":
+			if i+1 >= len(words) {
+				return Prompt("")
+			}
+			i++
+			switch words[i] {
+			case "d", "o", "x":
+			default:
+				return Prompt("")
+			}
+		case strings.HasPrefix(word, "--demangle="):
+			val := strings.TrimPrefix(word, "--demangle=")
+			switch val {
+			case "none", "auto", "gnu-v3", "java", "gnat", "dlang", "rust":
+			default:
+				return Prompt("")
+			}
+		case word == "-C":
+			// Handled in allowedNmFlags
+		default:
+			return Prompt("")
+		}
+	}
+	return Allow()
+}
+
+// validateObjdump verifies objdump arguments against an allowlist of inspection flags.
+func validateObjdump(words []string) Decision {
+	for i := 1; i < len(words); i++ {
+		word := words[i]
+		if strings.HasPrefix(word, "@") {
+			return Prompt("")
+		}
+		if !strings.HasPrefix(word, "-") {
+			continue
+		}
+		if allowedObjdumpFlags[word] {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(word, "-j"), strings.HasPrefix(word, "--section="):
+			// safe section name specification
+		case word == "--section":
+			if i+1 >= len(words) {
+				return Prompt("")
+			}
+			i++
+		case strings.HasPrefix(word, "-M"), strings.HasPrefix(word, "--disassembler-options="):
+			// safe disassembler options
+		case word == "--disassembler-options":
+			if i+1 >= len(words) {
+				return Prompt("")
+			}
+			i++
+		case strings.HasPrefix(word, "--disassemble="):
+			// safe symbol disassembly filter
+		case strings.HasPrefix(word, "--demangle="):
+			val := strings.TrimPrefix(word, "--demangle=")
+			switch val {
+			case "none", "auto", "gnu-v3", "java", "gnat", "dlang", "rust":
+			default:
+				return Prompt("")
+			}
+		case strings.HasPrefix(word, "--insn-width="):
+			// safe numeric formatting option
+		case strings.HasPrefix(word, "--start-address="), strings.HasPrefix(word, "--stop-address="):
+			// safe address bounds
+		case strings.HasPrefix(word, "--adjust-vma="):
+			// safe offset adjustment
+		default:
 			return Prompt("")
 		}
 	}
