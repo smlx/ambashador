@@ -73,6 +73,12 @@ var disallowedGitGrepFlags = map[string]bool{
 	"--textconv": true,
 }
 
+// disallowedGitLogFlags identifies git log arguments capable of arbitrary command execution.
+var disallowedGitLogFlags = map[string]bool{
+	"--ext-diff": true,
+	"--textconv": true,
+}
+
 // allowedManFlags defines safe flags permitted for man invocations.
 var allowedManFlags = map[string]bool{
 	"-a":                 true,
@@ -632,6 +638,19 @@ func validateGit(words []string) Decision {
 	}
 	if subcmd == "grep" {
 		return validateGitGrep(words[2:])
+	}
+	if subcmd == "log" {
+		return validateGitLog(words[2:])
+	}
+	return Allow()
+}
+
+// validateGitLog verifies git log invocations do not execute external diff or text conversion drivers.
+func validateGitLog(words []string) Decision {
+	for _, word := range words {
+		if disallowedGitLogFlags[word] {
+			return Prompt("")
+		}
 	}
 	return Allow()
 }
