@@ -8,7 +8,7 @@ import (
 )
 
 // SedSandboxAdvice is context advice provided when sed is run without sandbox.
-const SedSandboxAdvice = "Use 'sed --sandbox ...' to avoid a permission prompt."
+const SedSandboxAdvice = "Use 'sed --sandbox ...'"
 
 // CommandValidator inspects arguments for a specific command and returns a Decision.
 type CommandValidator func(args []string) Decision
