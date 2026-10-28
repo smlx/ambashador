@@ -26,6 +26,8 @@ allow	diff -u file1 file2
 allow	jq . file.json
 allow	jq -r '.foo' file.json
 allow	nl f
+allow	meson setup build
+allow	ninja -C build
 allow	uniq f
 allow	sort f
 allow	sort -r f
