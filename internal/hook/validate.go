@@ -54,6 +54,8 @@ var allowedCommands = map[string]bool{
 	"jq":            true,
 	"ls":            true,
 	"man":           true,
+	"meson":         true,
+	"ninja":         true,
 	"nl":            true,
 	"nm":            true,
 	"objdump":       true,
