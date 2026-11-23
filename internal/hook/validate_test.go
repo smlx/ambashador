@@ -2,7 +2,6 @@ package hook_test
 
 import (
 	"bufio"
-	"encoding/json/v2"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,13 +34,10 @@ func TestValidateCases(t *testing.T) {
 
 		t.Run(expectation+": "+cmd, func(t *testing.T) {
 			dec := hook.Validate(cmd)
-			b, err := dec.JSON()
-			assert.NoError(t, err)
-			got := string(b)
 
 			switch expectation {
 			case "allow":
-				assert.Equal(t, `{"decision":"allow"}`, got)
+				assert.Equal(t, hook.Allow(), dec)
 			case "rewrite":
 				assert.Equal(t, 3, len(parts))
 				assert.True(t, dec.IsAllowed())
@@ -49,12 +45,9 @@ func TestValidateCases(t *testing.T) {
 					"command": strings.ReplaceAll(parts[2], `\n`, "\n"),
 				}, dec.UpdatedInput)
 			case "deny":
-				assert.Equal(t, "{}", got)
+				assert.Equal(t, hook.Prompt(""), dec)
 			case "explain":
 				assert.Equal(t, hook.Prompt(hook.SedSandboxAdvice), dec)
-				var payload map[string]string
-				assert.NoError(t, json.Unmarshal(b, &payload))
-				assert.Equal(t, map[string]string{"context": hook.SedSandboxAdvice}, payload)
 			default:
 				t.Fatalf("unexpected expectation: %s", expectation)
 			}
@@ -88,9 +81,12 @@ func TestGitRewriteDisablesConfiguredFSMonitor(t *testing.T) {
 	original := "git ls-files '*lock*'"
 	assert.Contains(t, run("bash", "-c", original), "run_command:")
 	decision := hook.Validate(original)
-	payload, err := decision.JSON()
-	assert.NoError(t, err)
-	assert.Equal(t, `{"decision":"allow","updated_input":{"command":"git -c core.fsmonitor=false ls-files -- '*lock*'"}}`, string(payload))
+	assert.Equal(t, hook.Decision{
+		Decision: "allow",
+		UpdatedInput: map[string]string{
+			"command": "git -c core.fsmonitor=false ls-files -- '*lock*'",
+		},
+	}, decision)
 	output := run("bash", "-c", decision.UpdatedInput["command"])
 	assert.Contains(t, output, "lockfile\n")
 	assert.False(t, strings.Contains(output, "run_command:"), "%s", output)
@@ -100,16 +96,10 @@ func TestValidateEmptyAndUnset(t *testing.T) {
 	t.Run("empty string", func(t *testing.T) {
 		dec := hook.Validate("")
 		assert.Equal(t, hook.Prompt(""), dec)
-		b, err := dec.JSON()
-		assert.NoError(t, err)
-		assert.Equal(t, "{}", string(b))
 	})
 
 	t.Run("whitespace only", func(t *testing.T) {
 		dec := hook.Validate("   \t  \n  ")
 		assert.Equal(t, hook.Prompt(""), dec)
-		b, err := dec.JSON()
-		assert.NoError(t, err)
-		assert.Equal(t, "{}", string(b))
 	})
 }
