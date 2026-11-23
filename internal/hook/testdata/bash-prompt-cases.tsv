@@ -17,6 +17,18 @@ allow	rg --pre-glob '*.txt' pattern
 allow	go test ./...
 allow	golangci-lint run
 allow	gofmt -l .
+allow	command -v crush; command -v golangci-lint
+allow	command -V 'go'
+deny	command
+deny	command sh
+deny	command -p sh
+deny	command -v
+deny	command -v ''
+deny	command -v -p
+deny	command -v go git
+deny	command -v "$name"
+deny	command -v $(echo go)
+deny	command -v go*
 allow	false
 allow	true
 allow	wc -l f
@@ -32,6 +44,29 @@ allow	uniq f
 allow	sort f
 allow	sort -r f
 allow	sort -u f
+allow	sha1sum /tmp/lagoon-graphql-{ws-5.16.0,sse-2.5.4}-review.tgz
+allow	test -d node_modules
+allow	printf '%% %s' example
+allow	set -- one two
+deny	set -x
+deny	set
+deny	printf -v PATH '%s' /tmp
+deny	printf '%n' PATH
+deny	printf "$format"
+deny	test -v 'values[0]'
+rewrite	tar -tzf /tmp/archive.tgz | rg 'result|promise'	TAR_OPTIONS='' tar -tzf /tmp/archive.tgz | rg 'result|promise'
+deny	tar -tzf
+deny	tar -tzf -
+deny	tar -tzf host:archive.tgz
+deny	tar -tzf /tmp/archive.tgz --checkpoint=1
+deny	tar -tzf /tmp/*.tgz
+rewrite	tar -xOzf /tmp/archive.tgz package/lib/server.js | nl -ba | sed --sandbox -n '60,89p'	TAR_OPTIONS='' tar -xOzf /tmp/archive.tgz package/lib/server.js | nl -ba | sed --sandbox -n '60,89p'
+explain	tar -xOzf /tmp/archive.tgz package/lib/server.js | nl -ba | sed -n '60,89p'
+deny	tar -xzf /tmp/archive.tgz package/lib/server.js
+deny	tar -xOzf host:archive.tgz package/lib/server.js
+deny	tar -xOzf /tmp/archive.tgz --to-command=sh
+deny	tar -xOzf /tmp/*.tgz package/lib/server.js
+deny	tar -xOzf /tmp/archive.tgz "$member"
 
 # Commands that are simply not on the allowlist.
 deny	rm -rf /
@@ -49,15 +84,30 @@ deny	find . -okdir rm {} \;
 deny	find . -delete
 
 # 'git' is allowed only for read-only subcommands, named immediately after it.
-allow	git status
-allow	git diff
-allow	git diff --stat HEAD
-allow	git show HEAD
-allow	git status | grep modified
-allow	git log
-allow	git log -n 5 --oneline
-allow	git grep pattern
-allow	git grep -n --cached pattern
+rewrite	git status	git -c core.fsmonitor=false status
+rewrite	git diff	git -c core.fsmonitor=false diff
+rewrite	git diff --stat HEAD	git -c core.fsmonitor=false diff --stat HEAD
+rewrite	git show HEAD	git -c core.fsmonitor=false show HEAD
+rewrite	git status | grep modified	git -c core.fsmonitor=false status | grep modified
+rewrite	git log	git -c core.fsmonitor=false log
+rewrite	git log -n 5 --oneline	git -c core.fsmonitor=false log -n 5 --oneline
+rewrite	git remote	git -c core.fsmonitor=false remote
+rewrite	git remote -v	git -c core.fsmonitor=false remote -v
+rewrite	git remote --verbose	git -c core.fsmonitor=false remote --verbose
+rewrite	git log -5 --oneline; git remote -v	git -c core.fsmonitor=false log -5 --oneline; git -c core.fsmonitor=false remote -v
+deny	git remote update
+deny	git remote --verbose show origin
+deny	git remote set-url origin elsewhere
+deny	git remote -v --verbose
+rewrite	git grep pattern	git -c core.fsmonitor=false grep pattern
+rewrite	git grep -n --cached pattern	git -c core.fsmonitor=false grep -n --cached pattern
+rewrite	git ls-files	git -c core.fsmonitor=false ls-files
+rewrite	git ls-files -- '-name'	git -c core.fsmonitor=false ls-files -- '-name'
+rewrite	git ls-files '*AGENTS*' '*CRUSH*'; test -d node_modules && printf 'node_modules exists'	git -c core.fsmonitor=false ls-files -- '*AGENTS*' '*CRUSH*'; test -d node_modules && printf 'node_modules exists'
+rewrite	'git' grep -n 'é' | cut -c 1-240; git ls-files '*lock*' && git status	'git' -c core.fsmonitor=false grep -n 'é' | cut -c 1-240; git -c core.fsmonitor=false ls-files -- '*lock*' && git -c core.fsmonitor=false status
+rewrite	git status # git grep pattern\ngit log >out	git -c core.fsmonitor=false status # git grep pattern\ngit -c core.fsmonitor=false log >out
+deny	git ls-files --recurse-submodules
+deny	git status; git push
 deny	git
 deny	git push
 deny	git commit -m x
