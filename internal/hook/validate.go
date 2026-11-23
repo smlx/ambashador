@@ -16,6 +16,7 @@ type CommandValidator func(args []string) Decision
 // commandValidators registers specialized validation handlers for commands
 // requiring deeper argument inspection.
 var commandValidators = map[string]CommandValidator{
+	"command": validateCommandLookup,
 	"find":    validateFind,
 	"git":     validateGit,
 	"man":     validateMan,
@@ -43,6 +44,7 @@ var disallowedFindFlags = map[string]bool{
 var allowedCommands = map[string]bool{
 	"cat":           true,
 	"cd":            true,
+	"command":       true,
 	"cut":           true,
 	"diff":          true,
 	"echo":          true,
@@ -649,6 +651,18 @@ func checkCall(call *syntax.CallExpr, allowlist map[string]bool) Decision {
 	}
 	if validator, ok := commandValidators[cmdName]; ok {
 		return validator(words)
+	}
+	return Allow()
+}
+
+func validateCommandLookup(words []string) Decision {
+	if len(words) != 3 || (words[1] != "-v" && words[1] != "-V") {
+		return Prompt("")
+	}
+	name := words[2]
+	if name == "" || strings.HasPrefix(name, "-") ||
+		strings.ContainsAny(name, " *?[{~\t\r\n") {
+		return Prompt("")
 	}
 	return Allow()
 }

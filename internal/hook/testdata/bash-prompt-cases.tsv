@@ -17,6 +17,18 @@ allow	rg --pre-glob '*.txt' pattern
 allow	go test ./...
 allow	golangci-lint run
 allow	gofmt -l .
+allow	command -v crush; command -v golangci-lint
+allow	command -V 'go'
+deny	command
+deny	command sh
+deny	command -p sh
+deny	command -v
+deny	command -v ''
+deny	command -v -p
+deny	command -v go git
+deny	command -v "$name"
+deny	command -v $(echo go)
+deny	command -v go*
 allow	false
 allow	true
 allow	wc -l f
