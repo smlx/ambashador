@@ -251,6 +251,7 @@ var allowedGitSubcommands = map[string]bool{
 	"diff":     true,
 	"grep":     true,
 	"ls-files": true,
+	"remote":   true,
 	"show":     true,
 	"status":   true,
 	"log":      true,
@@ -694,6 +695,11 @@ func validateGit(words []string) Decision {
 	}
 	if subcmd == "log" {
 		return validateGitLog(words[2:])
+	}
+	if subcmd == "remote" && len(words) != 2 &&
+		!slices.Equal(words[2:], []string{"-v"}) &&
+		!slices.Equal(words[2:], []string{"--verbose"}) {
+		return Prompt("")
 	}
 	if subcmd == "ls-files" && len(words) > 2 && words[2] != "--" {
 		for _, pathspec := range words[2:] {

@@ -79,6 +79,14 @@ rewrite	git show HEAD	git -c core.fsmonitor=false show HEAD
 rewrite	git status | grep modified	git -c core.fsmonitor=false status | grep modified
 rewrite	git log	git -c core.fsmonitor=false log
 rewrite	git log -n 5 --oneline	git -c core.fsmonitor=false log -n 5 --oneline
+rewrite	git remote	git -c core.fsmonitor=false remote
+rewrite	git remote -v	git -c core.fsmonitor=false remote -v
+rewrite	git remote --verbose	git -c core.fsmonitor=false remote --verbose
+rewrite	git log -5 --oneline; git remote -v	git -c core.fsmonitor=false log -5 --oneline; git -c core.fsmonitor=false remote -v
+deny	git remote update
+deny	git remote --verbose show origin
+deny	git remote set-url origin elsewhere
+deny	git remote -v --verbose
 rewrite	git grep pattern	git -c core.fsmonitor=false grep pattern
 rewrite	git grep -n --cached pattern	git -c core.fsmonitor=false grep -n --cached pattern
 rewrite	git ls-files	git -c core.fsmonitor=false ls-files
