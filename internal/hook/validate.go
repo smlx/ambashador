@@ -769,16 +769,22 @@ func validateTest(words []string) Decision {
 }
 
 func validateTar(words []string) Decision {
-	if len(words) != 4 || words[1] != "-xOzf" {
+	switch {
+	case len(words) == 3 && words[1] == "-tzf":
+	case len(words) == 4 && words[1] == "-xOzf":
+	default:
 		return Prompt("")
 	}
 	for _, path := range words[2:] {
 		if path == "" || strings.HasPrefix(path, "-") ||
 			strings.ContainsFunc(path, func(char rune) bool {
-				return !((char >= 'a' && char <= 'z') ||
-					(char >= 'A' && char <= 'Z') ||
-					(char >= '0' && char <= '9') ||
-					strings.ContainsRune("./_-", char))
+				switch {
+				case char >= 'a' && char <= 'z', char >= 'A' && char <= 'Z',
+					char >= '0' && char <= '9', strings.ContainsRune("./_-", char):
+					return false
+				default:
+					return true
+				}
 			}) {
 			return Prompt("")
 		}

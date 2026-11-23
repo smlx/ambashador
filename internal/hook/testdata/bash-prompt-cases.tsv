@@ -42,6 +42,12 @@ deny	printf -v PATH '%s' /tmp
 deny	printf '%n' PATH
 deny	printf "$format"
 deny	test -v 'values[0]'
+rewrite	tar -tzf /tmp/archive.tgz | rg 'result|promise'	TAR_OPTIONS='' tar -tzf /tmp/archive.tgz | rg 'result|promise'
+deny	tar -tzf
+deny	tar -tzf -
+deny	tar -tzf host:archive.tgz
+deny	tar -tzf /tmp/archive.tgz --checkpoint=1
+deny	tar -tzf /tmp/*.tgz
 rewrite	tar -xOzf /tmp/archive.tgz package/lib/server.js | nl -ba | sed --sandbox -n '60,89p'	TAR_OPTIONS='' tar -xOzf /tmp/archive.tgz package/lib/server.js | nl -ba | sed --sandbox -n '60,89p'
 explain	tar -xOzf /tmp/archive.tgz package/lib/server.js | nl -ba | sed -n '60,89p'
 deny	tar -xzf /tmp/archive.tgz package/lib/server.js

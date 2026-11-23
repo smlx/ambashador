@@ -11,4 +11,4 @@ Reading/writing files is permitted. Any command that risks arbitrary command exe
 
 Auto-approved Git commands are rewritten with `-c core.fsmonitor=false` so that Git does not run a configured filesystem monitor. This requires Git 2.36 or later; older versions may interpret `false` as a hook path. This override does not disable other Git helpers.
 
-Archive inspection is auto-approved only for `tar -xOzf` on a literal local archive and a literal member name. The hook clears `TAR_OPTIONS` for that invocation. Shell loops and commands with variable arguments still require approval.
+Archive inspection is auto-approved for `tar -tzf` to list a literal local archive and `tar -xOzf` to stream one literal member from a literal local archive. The hook clears `TAR_OPTIONS` for both forms. Shell loops and commands with variable arguments still require approval.
