@@ -2,6 +2,7 @@ package hook_test
 
 import (
 	"bufio"
+	"encoding/json/v2"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -51,8 +52,9 @@ func TestValidateCases(t *testing.T) {
 				assert.Equal(t, "{}", got)
 			case "explain":
 				assert.Equal(t, hook.Prompt(hook.SedSandboxAdvice), dec)
-				assert.Equal(t,
-					`{"context":"`+hook.SedSandboxAdvice+`"}`, got)
+				var payload map[string]string
+				assert.NoError(t, json.Unmarshal(b, &payload))
+				assert.Equal(t, map[string]string{"context": hook.SedSandboxAdvice}, payload)
 			default:
 				t.Fatalf("unexpected expectation: %s", expectation)
 			}
