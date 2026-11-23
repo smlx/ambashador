@@ -10,8 +10,9 @@ const decisionAllow = "allow"
 
 // Decision represents the outcome of inspecting a command.
 type Decision struct {
-	Decision string `json:"decision,omitzero"`
-	Context  string `json:"context,omitzero"`
+	Decision     string            `json:"decision,omitzero"`
+	Context      string            `json:"context,omitzero"`
+	UpdatedInput map[string]string `json:"updated_input,omitzero"`
 }
 
 // IsAllowed returns true if the decision permits command execution.

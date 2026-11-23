@@ -21,8 +21,12 @@ var commandValidators = map[string]CommandValidator{
 	"man":     validateMan,
 	"nm":      validateNm,
 	"objdump": validateObjdump,
+	"printf":  validatePrintf,
 	"rg":      validateRg,
 	"sed":     validateSed,
+	"set":     validateSet,
+	"tar":     validateTar,
+	"test":    validateTest,
 }
 
 // disallowedFindFlags identifies find arguments capable of file modification or
@@ -59,12 +63,17 @@ var allowedCommands = map[string]bool{
 	"nl":            true,
 	"nm":            true,
 	"objdump":       true,
+	"printf":        true,
 	"pwd":           true,
 	"rg":            true,
 	"sed":           true,
+	"set":           true,
+	"sha1sum":       true,
 	"sort":          true,
 	"tail":          true,
+	"tar":           true,
 	"tee":           true,
+	"test":          true,
 	"true":          true,
 	"uniq":          true,
 	"wc":            true,
@@ -239,11 +248,12 @@ var allowedObjdumpFlags = map[string]bool{
 
 // allowedGitSubcommands defines read-only git subcommands permitted for auto-approval.
 var allowedGitSubcommands = map[string]bool{
-	"diff":   true,
-	"grep":   true,
-	"show":   true,
-	"status": true,
-	"log":    true,
+	"diff":     true,
+	"grep":     true,
+	"ls-files": true,
+	"show":     true,
+	"status":   true,
+	"log":      true,
 }
 
 // allowedFilters defines commands permitted as downstream stages within a pipeline.
@@ -284,7 +294,48 @@ func Validate(cmd string) Decision {
 			return dec
 		}
 	}
-	return Allow()
+	dec := Allow()
+	if updated := rewriteCommand(cmd, file); updated != cmd {
+		dec.UpdatedInput = map[string]string{"command": updated}
+	}
+	return dec
+}
+
+func rewriteCommand(cmd string, file *syntax.File) string {
+	var result strings.Builder
+	var previous uint
+	insert := func(pos syntax.Pos, text string) {
+		offset := pos.Offset()
+		result.WriteString(cmd[previous:offset])
+		result.WriteString(text)
+		previous = offset
+	}
+	syntax.Walk(file, func(node syntax.Node) bool {
+		call, ok := node.(*syntax.CallExpr)
+		if !ok {
+			return true
+		}
+		name, _ := extractStaticWord(call.Args[0])
+		switch name {
+		case "git":
+			insert(call.Args[1].Pos(), "-c core.fsmonitor=false ")
+			subcmd, _ := extractStaticWord(call.Args[1])
+			if subcmd == "ls-files" && len(call.Args) > 2 {
+				arg, _ := extractStaticWord(call.Args[2])
+				if arg != "--" {
+					insert(call.Args[2].Pos(), "-- ")
+				}
+			}
+		case "tar":
+			insert(call.Args[0].Pos(), "TAR_OPTIONS='' ")
+		}
+		return false
+	})
+	if result.Len() == 0 {
+		return cmd
+	}
+	result.WriteString(cmd[previous:])
+	return result.String()
 }
 
 // checkStmt validates a top-level shell statement and delegates execution
@@ -644,6 +695,13 @@ func validateGit(words []string) Decision {
 	if subcmd == "log" {
 		return validateGitLog(words[2:])
 	}
+	if subcmd == "ls-files" && len(words) > 2 && words[2] != "--" {
+		for _, pathspec := range words[2:] {
+			if strings.HasPrefix(pathspec, "-") {
+				return Prompt("")
+			}
+		}
+	}
 	return Allow()
 }
 
@@ -665,6 +723,63 @@ func validateGitGrep(words []string) Decision {
 			word == "--open-files-in-pager" ||
 			strings.HasPrefix(word, "-O") ||
 			strings.HasPrefix(word, "--open-files-in-pager=") {
+			return Prompt("")
+		}
+	}
+	return Allow()
+}
+
+func validatePrintf(words []string) Decision {
+	if len(words) < 2 {
+		return Prompt("")
+	}
+	format := words[1]
+	if strings.HasPrefix(format, "-") || strings.ContainsAny(format, "*?[{~") {
+		return Prompt("")
+	}
+	for i := 0; i < len(format); i++ {
+		if format[i] != '%' {
+			continue
+		}
+		i++
+		if i == len(format) || (format[i] != '%' && format[i] != 's') {
+			return Prompt("")
+		}
+	}
+	return Allow()
+}
+
+func validateSet(words []string) Decision {
+	if len(words) < 2 || words[1] != "--" {
+		return Prompt("")
+	}
+	return Allow()
+}
+
+func validateTest(words []string) Decision {
+	if len(words) != 3 {
+		return Prompt("")
+	}
+	switch words[1] {
+	case "-d", "-e", "-f", "-L", "-r", "-s", "-w", "-x":
+		return Allow()
+	default:
+		return Prompt("")
+	}
+}
+
+func validateTar(words []string) Decision {
+	if len(words) != 4 || words[1] != "-xOzf" {
+		return Prompt("")
+	}
+	for _, path := range words[2:] {
+		if path == "" || strings.HasPrefix(path, "-") ||
+			strings.ContainsFunc(path, func(char rune) bool {
+				return !((char >= 'a' && char <= 'z') ||
+					(char >= 'A' && char <= 'Z') ||
+					(char >= '0' && char <= '9') ||
+					strings.ContainsRune("./_-", char))
+			}) {
 			return Prompt("")
 		}
 	}

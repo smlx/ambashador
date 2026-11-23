@@ -3,6 +3,8 @@ package hook_test
 import (
 	"bufio"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -23,8 +25,8 @@ func TestValidateCases(t *testing.T) {
 		if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		parts := strings.SplitN(line, "\t", 2)
-		assert.Equal(t, 2, len(parts), "malformed test case line %d: %q",
+		parts := strings.SplitN(line, "\t", 3)
+		assert.True(t, len(parts) >= 2, "malformed test case line %d: %q",
 			lineNo, line)
 
 		expectation := parts[0]
@@ -39,6 +41,12 @@ func TestValidateCases(t *testing.T) {
 			switch expectation {
 			case "allow":
 				assert.Equal(t, `{"decision":"allow"}`, got)
+			case "rewrite":
+				assert.Equal(t, 3, len(parts))
+				assert.True(t, dec.IsAllowed())
+				assert.Equal(t, map[string]string{
+					"command": strings.ReplaceAll(parts[2], `\n`, "\n"),
+				}, dec.UpdatedInput)
 			case "deny":
 				assert.Equal(t, "{}", got)
 			case "explain":
@@ -51,6 +59,39 @@ func TestValidateCases(t *testing.T) {
 		})
 	}
 	assert.NoError(t, scanner.Err())
+}
+
+func TestGitRewriteDisablesConfiguredFSMonitor(t *testing.T) {
+	for _, name := range []string{"bash", "git", "true"} {
+		if _, err := exec.LookPath(name); err != nil {
+			t.Skipf("%s unavailable: %v", name, err)
+		}
+	}
+	dir := t.TempDir()
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(dir, "empty-config"))
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("GIT_TRACE", "1")
+	run := func(name string, args ...string) string {
+		t.Helper()
+		cmd := exec.CommandContext(t.Context(), name, args...)
+		cmd.Dir = dir
+		output, err := cmd.CombinedOutput()
+		assert.NoError(t, err, "%s", output)
+		return string(output)
+	}
+	run("git", "init", "--quiet")
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "lockfile"), []byte("line\n"), 0o600))
+	run("git", "add", "lockfile")
+	run("git", "config", "core.fsmonitor", "true 2>/dev/null")
+	original := "git ls-files '*lock*'"
+	assert.Contains(t, run("bash", "-c", original), "run_command:")
+	decision := hook.Validate(original)
+	payload, err := decision.JSON()
+	assert.NoError(t, err)
+	assert.Equal(t, `{"decision":"allow","updated_input":{"command":"git -c core.fsmonitor=false ls-files -- '*lock*'"}}`, string(payload))
+	output := run("bash", "-c", decision.UpdatedInput["command"])
+	assert.Contains(t, output, "lockfile\n")
+	assert.False(t, strings.Contains(output, "run_command:"), "%s", output)
 }
 
 func TestValidateEmptyAndUnset(t *testing.T) {
